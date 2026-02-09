@@ -210,8 +210,8 @@
                                     </div>
                                 </div>
                                 <div>
-                                    <label class="block font-bold text-slate-500 mb-1">ベース需要 (t/日)</label>
-                                    <input type="number" id="sens-demand" value="100" class="w-full border rounded-lg px-3 py-2 text-right bg-slate-50 focus:bg-white focus:border-brand-success outline-none" onchange="updateSensitivityAnalysis()">
+                                    <label class="block font-bold text-slate-500 mb-1">リードタイム (日)</label>
+                                    <input type="number" id="sens-lt" value="5" class="w-full border rounded-lg px-3 py-2 text-right bg-slate-50 focus:bg-white focus:border-brand-success outline-none" onchange="updateSensitivityAnalysis()">
                                 </div>
                                 <div>
                                     <label class="block font-bold text-slate-500 mb-1">需要の振れ幅(σ)</label>
@@ -486,9 +486,8 @@
             const sl = parseFloat(document.getElementById('ss-slider').value);
             const price = parseFloat(document.getElementById('sens-price').value) || 0;
             const rate = parseFloat(document.getElementById('sens-rate').value) || 0;
-            const demand = parseFloat(document.getElementById('sens-demand').value) || 0;
             const sigma = parseFloat(document.getElementById('sens-sigma').value) || 0;
-            const lt = 5; 
+            const lt = parseFloat(document.getElementById('sens-lt').value) || 0;
 
             document.getElementById('ss-slider-val').innerText = sl.toFixed(1) + "%";
             
