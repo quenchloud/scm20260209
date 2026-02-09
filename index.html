@@ -431,7 +431,90 @@
             updateSensitivityAnalysis();
         }
 
-        // ... existing Newsvendor functions ...
+        // --- 復元: 発注量最適化ゲームのロジック ---
+        function playNewsvendorRound() {
+            const userQtyInput = document.getElementById('game-order-qty').value;
+            const costInput = document.getElementById('game-cost').value;
+            const priceInput = document.getElementById('game-price').value;
+            const lossInput = document.getElementById('game-salvage-loss').value;
+
+            if(!userQtyInput || !costInput || !priceInput || !lossInput) {
+                alert("全ての項目（単価・発注数）を入力してください。");
+                return;
+            }
+
+            const userQty = parseInt(userQtyInput);
+            const cost = parseInt(costInput);
+            const price = parseInt(priceInput);
+            const lossPerUnit = parseInt(lossInput);
+            
+            const demand = Math.round(100 + randn_bm() * 20);
+            
+            // 最適解の計算 (新聞売り子モデル)
+            const cu = price - cost; // 機会損失コスト
+            const co = lossPerUnit;  // 在庫廃棄コスト
+            const cr = cu / (cu + co); // クリティカル・レシオ
+            const optK = inverseNormalCDF(cr);
+            const optQty = Math.round(100 + optK * 20);
+
+            // 損益計算
+            const margin = price - cost;
+            const pUser = (Math.min(userQty, demand) * margin) - (Math.max(0, userQty - demand) * lossPerUnit);
+            const pOpt = (Math.min(optQty, demand) * margin) - (Math.max(0, optQty - demand) * lossPerUnit);
+
+            nvDataUser += pUser;
+            nvDataOpt += pOpt;
+            nvHistory.push(nvHistory.length+1);
+
+            // 結果表示
+            document.getElementById('res-demand').innerText = demand + "t";
+            document.getElementById('res-outcome').innerText = userQty > demand ? `売残 ${userQty - demand}t` : `完売 (損失 ${Math.max(0, demand-userQty)}t)`;
+            document.getElementById('res-profit').innerText = pUser.toLocaleString() + "千";
+            
+            const pEl = document.getElementById('res-profit');
+            if(pUser < 0) {
+                pEl.className = "font-bold text-lg text-red-500";
+            } else {
+                pEl.className = "font-bold text-lg text-emerald-600";
+            }
+            
+            document.getElementById('game-result-area').classList.remove('hidden');
+
+            document.getElementById('total-profit-user').innerText = nvDataUser.toLocaleString();
+            document.getElementById('total-profit-opt').innerText = nvDataOpt.toLocaleString();
+
+            // グラフ更新
+            nvChartInstance.data.labels = nvHistory;
+            nvChartInstance.data.datasets[0].data.push(nvDataUser);
+            nvChartInstance.data.datasets[1].data.push(nvDataOpt);
+            nvChartInstance.update();
+        }
+
+        function autoPlayNewsvendor() {
+             const userQtyInput = document.getElementById('game-order-qty').value;
+            if(!userQtyInput) { alert("発注数を入力してください"); return; }
+            for(let i=0; i<30; i++) playNewsvendorRound();
+        }
+
+        function resetNewsvendorGame() {
+            nvDataUser = 0;
+            nvDataOpt = 0;
+            nvHistory = [];
+            
+            nvChartInstance.data.labels = [];
+            nvChartInstance.data.datasets[0].data = [];
+            nvChartInstance.data.datasets[1].data = [];
+            nvChartInstance.update();
+
+            document.getElementById('game-cost').value = "";
+            document.getElementById('game-price').value = "";
+            document.getElementById('game-salvage-loss').value = "";
+            document.getElementById('game-order-qty').value = "";
+
+            document.getElementById('game-result-area').classList.add('hidden');
+            document.getElementById('total-profit-user').innerText = "0";
+            document.getElementById('total-profit-opt').innerText = "0";
+        }
 
         function updateSensitivityAnalysis() {
             const sl = parseFloat(document.getElementById('ss-slider').value);
