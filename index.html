@@ -115,7 +115,7 @@
                         <!-- Game Settings -->
                         <div class="bg-white p-4 rounded-lg border border-slate-200 mb-6 shadow-sm">
                             <h4 class="text-xs font-bold text-slate-400 uppercase mb-3 border-b pb-2">取引条件設定 (千円/t)</h4>
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm mb-4">
                                 <div>
                                     <label class="block text-xs font-bold text-slate-500 mb-1">仕入単価 (Cost)</label>
                                     <input type="number" id="game-cost" placeholder="例: 100" class="w-full p-3 border rounded-lg text-right bg-slate-50 focus:bg-white focus:border-brand-primary outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all">
@@ -129,9 +129,17 @@
                                     <input type="number" id="game-salvage-loss" placeholder="例: 50" class="w-full p-3 border rounded-lg text-right bg-slate-50 focus:bg-white focus:border-brand-accent outline-none focus:ring-2 focus:ring-brand-accent/20 transition-all">
                                 </div>
                             </div>
-                            <div class="text-[10px] text-slate-400 mt-3 flex items-start gap-1">
-                                <i class="ph ph-info mt-0.5"></i>
-                                <span>需要分布: 平均100t, 標準偏差20t (正規分布) を想定</span>
+                            
+                            <h4 class="text-xs font-bold text-slate-400 uppercase mb-2 border-b border-slate-100 pb-1">需要設定 (正規分布)</h4>
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1">平均需要 (Mean)</label>
+                                    <input type="number" id="game-demand-mean" placeholder="例: 100" value="100" class="w-full p-3 border rounded-lg text-right bg-slate-50 focus:bg-white focus:border-brand-primary outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1">需要の振れ幅 (σ)</label>
+                                    <input type="number" id="game-demand-sigma" placeholder="例: 20" value="20" class="w-full p-3 border rounded-lg text-right bg-slate-50 focus:bg-white focus:border-brand-primary outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all">
+                                </div>
                             </div>
                         </div>
 
@@ -181,6 +189,31 @@
                                 <span class="block text-slate-400 mb-1">AI最適値の累積</span>
                                 <span id="total-profit-opt" class="font-bold text-lg text-slate-500">0</span> <span class="text-[10px]">千円</span>
                             </div>
+                        </div>
+
+                        <!-- Formula Explanation (Newsvendor) -->
+                        <div class="mt-4 border-t border-slate-100 pt-4">
+                            <details class="group">
+                                <summary class="flex items-center gap-2 text-xs font-bold text-slate-500 cursor-pointer list-none select-none hover:text-brand-primary transition">
+                                    <i class="ph ph-caret-right group-open:rotate-90 transition-transform"></i>
+                                    <span>AI最適値の計算式 (新聞売り子モデル)</span>
+                                </summary>
+                                <div class="mt-3 bg-slate-50 p-3 rounded text-xs text-slate-600 leading-relaxed border border-slate-100">
+                                    <p class="mb-2">「機会損失」と「廃棄損」のバランスから、最適な発注確率（クリティカル・レシオ）を算出しています。</p>
+                                    
+                                    <div class="bg-white p-2 rounded border border-slate-200 mb-2 font-mono text-center">
+                                        <div class="inline-block text-left align-middle">
+                                            <div class="text-center border-b border-slate-400 mb-0.5 pb-0.5">利益 (機会損失)</div>
+                                            <div class="text-center">利益 ＋ 廃棄損</div>
+                                        </div>
+                                        <span class="align-middle ml-2">= 最適なカバー率</span>
+                                    </div>
+
+                                    <p>
+                                        例: 利益が廃棄損の<span class="font-bold text-brand-primary">4倍</span>なら、確率<span class="font-bold">80%</span>でも需要を満たすよう強気に発注します。
+                                    </p>
+                                </div>
+                            </details>
                         </div>
                     </div>
 
@@ -251,6 +284,26 @@
                                 </div>
                         </div>
 
+                        <!-- Formula Explanation (Safety Stock) -->
+                        <div class="mb-4">
+                            <details class="group">
+                                <summary class="flex items-center gap-2 text-xs font-bold text-slate-500 cursor-pointer list-none select-none hover:text-brand-success transition">
+                                    <i class="ph ph-caret-right group-open:rotate-90 transition-transform"></i>
+                                    <span>安全在庫の計算式</span>
+                                </summary>
+                                <div class="mt-3 bg-slate-50 p-3 rounded text-xs text-slate-600 leading-relaxed border border-slate-100">
+                                    <div class="font-mono bg-white p-2 rounded border border-slate-200 mb-2 text-center text-[10px] sm:text-xs">
+                                        安全在庫 = <span class="text-brand-success font-bold">安全係数(k)</span> × 振れ幅(σ) × <span class="whitespace-nowrap">√リードタイム</span>
+                                    </div>
+                                    <ul class="list-disc list-inside space-y-1 text-[10px] sm:text-xs ml-1">
+                                        <li><span class="font-bold text-brand-success">安全係数</span>: 目標サービスレベルで決まります（スライダー操作）。</li>
+                                        <li><span class="font-bold">振れ幅</span>: 需要のばらつきが大きいほど在庫が必要です。</li>
+                                        <li><span class="font-bold">√リードタイム</span>: 補充期間が長いほどリスクが増えます（ルート比例）。</li>
+                                    </ul>
+                                </div>
+                            </details>
+                        </div>
+
                         <div class="chart-container mb-4" style="height: 220px;">
                             <canvas id="sensitivityChart"></canvas>
                         </div>
@@ -278,7 +331,6 @@
         const sidebar = document.getElementById('sidebar');
 
         function toggleMenu() {
-            // hiddenクラスを外してflexを表示、あるいはその逆
             if (sidebar.classList.contains('hidden')) {
                 sidebar.classList.remove('hidden');
                 sidebar.classList.add('flex');
@@ -431,15 +483,17 @@
             updateSensitivityAnalysis();
         }
 
-        // --- 復元: 発注量最適化ゲームのロジック ---
+        // --- 発注量最適化ゲームのロジック ---
         function playNewsvendorRound() {
             const userQtyInput = document.getElementById('game-order-qty').value;
             const costInput = document.getElementById('game-cost').value;
             const priceInput = document.getElementById('game-price').value;
             const lossInput = document.getElementById('game-salvage-loss').value;
+            const meanInput = document.getElementById('game-demand-mean').value;
+            const sigmaInput = document.getElementById('game-demand-sigma').value;
 
-            if(!userQtyInput || !costInput || !priceInput || !lossInput) {
-                alert("全ての項目（単価・発注数）を入力してください。");
+            if(!userQtyInput || !costInput || !priceInput || !lossInput || !meanInput || !sigmaInput) {
+                alert("全ての項目（単価・発注数・需要パラメータ）を入力してください。");
                 return;
             }
 
@@ -447,15 +501,18 @@
             const cost = parseInt(costInput);
             const price = parseInt(priceInput);
             const lossPerUnit = parseInt(lossInput);
+            const mean = parseInt(meanInput);
+            const sigma = parseInt(sigmaInput);
             
-            const demand = Math.round(100 + randn_bm() * 20);
+            // 需要発生 (正規分布乱数)
+            const demand = Math.round(mean + randn_bm() * sigma);
             
             // 最適解の計算 (新聞売り子モデル)
             const cu = price - cost; // 機会損失コスト
             const co = lossPerUnit;  // 在庫廃棄コスト
             const cr = cu / (cu + co); // クリティカル・レシオ
             const optK = inverseNormalCDF(cr);
-            const optQty = Math.round(100 + optK * 20);
+            const optQty = Math.round(mean + optK * sigma);
 
             // 損益計算
             const margin = price - cost;
@@ -510,6 +567,9 @@
             document.getElementById('game-price').value = "";
             document.getElementById('game-salvage-loss').value = "";
             document.getElementById('game-order-qty').value = "";
+            // Reset demand params to default
+            document.getElementById('game-demand-mean').value = "100";
+            document.getElementById('game-demand-sigma').value = "20";
 
             document.getElementById('game-result-area').classList.add('hidden');
             document.getElementById('total-profit-user').innerText = "0";
@@ -534,14 +594,9 @@
             document.getElementById('sens-ss-val').innerText = ssVal.toFixed(1);
 
             // --- 2. Chart Update (Dynamic Curve) ---
-            // Re-generate the curve based on current Price/LT/Sigma
             const curveData = [];
             const labels = sensChartInstance.data.labels;
             
-            // For the point dataset (needs to match x-axis scale/labels)
-            // Since x-axis is categorical strings, we need to map the slider value to the closest label index?
-            // Chart.js Line chart can take x/y coordinates if parsing is false, but here we use simple labels.
-            // We will create a sparse array for the "Current Point" dataset.
             const pointData = new Array(labels.length).fill(null);
             
             let closestIndex = 0;
