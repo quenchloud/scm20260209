@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>在庫理論と発注戦略 | Mitsui & Co. Steel</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Phosphor Icons (for hamburger menu etc) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { dark: '#0f172a', primary: '#0369a1', secondary: '#334155', accent: '#ef4444', success: '#10b981', light: '#f1f5f9' }
+                    },
+                    fontFamily: { sans: ['"Biz UDPGothic"', 'Meiryo', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* ベース設定 */
+        body { -webkit-font-smoothing: antialiased; }
+        
+        /* グラフコンテナ */
+        .chart-container { position: relative; width: 100%; height: 250px; overflow: hidden; background-color: #ffffff; border-radius: 0.5rem; border: 1px solid #e2e8f0; }
+        @media (min-width: 768px) {
+            .chart-container { height: 300px; }
+        }
+
+        /* ナビゲーションアイテム */
+        .nav-item { display: block; width: 100%; padding: 0.75rem 1.5rem; text-align: left; color: #94a3b8; transition: all 0.2s; border-radius: 0.5rem; }
+        .nav-item:hover { background-color: rgba(255,255,255,0.05); color: #cbd5e1; }
+        .nav-item.active { background-color: #0369a1; color: white; font-weight: bold; }
+
+        /* 入力フォームの微調整 (iOS対策: text-baseにしてズーム防止) */
+        input[type=number], input[type=text] { font-size: 16px !important; }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+
+        /* スライダーのカスタマイズ */
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; background: #10b981; cursor: pointer; margin-top: -10px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 2px solid white; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #cbd5e1; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col md:flex-row">
+
+    <!-- Mobile Header (Sticky) -->
+    <header class="md:hidden bg-brand-dark text-white p-4 sticky top-0 z-50 shadow-md flex justify-between items-center">
+        <div>
+            <h1 class="text-lg font-bold tracking-wider">SCM RE-ENGINEERING</h1>
+        </div>
+        <button id="mobile-menu-btn" class="p-2 text-slate-300 hover:text-white focus:outline-none">
+            <i class="ph ph-list text-2xl"></i>
+        </button>
+    </header>
+
+    <!-- Sidebar / Mobile Menu -->
+    <!-- Mobile: Hidden by default, toggled via JS. Desktop: Always visible sidebar -->
+    <aside id="sidebar" class="hidden md:flex flex-col w-full md:w-64 bg-brand-dark text-slate-300 md:h-screen md:sticky md:top-0 md:flex-shrink-0 shadow-xl z-40 transition-all duration-300 ease-in-out fixed inset-0 md:static pt-16 md:pt-0">
+        <!-- Close button for mobile -->
+        <button id="close-menu-btn" class="absolute top-4 right-4 md:hidden text-slate-400 p-2">
+            <i class="ph ph-x text-2xl"></i>
+        </button>
+
+        <div class="hidden md:block p-6 border-b border-slate-700 bg-slate-900">
+            <h1 class="text-xl font-bold text-white tracking-wider">SCM RE-ENGINEERING</h1>
+        </div>
+        
+        <nav class="flex-1 overflow-y-auto py-4 px-2 md:px-0">
+            <ul class="space-y-1">
+                <li><span class="nav-item opacity-50 cursor-not-allowed flex items-center gap-3"><i class="ph ph-strategy"></i> 戦略アドバイザー</span></li>
+                <li><span class="nav-item opacity-50 cursor-not-allowed flex items-center gap-3"><i class="ph ph-globe"></i> ネットワーク</span></li>
+                <li><span class="nav-item opacity-50 cursor-not-allowed flex items-center gap-3"><i class="ph ph-flask"></i> 経済実験</span></li>
+                <li><span class="nav-item opacity-50 cursor-not-allowed flex items-center gap-3"><i class="ph ph-warning"></i> 構造的課題</span></li>
+                <li><span class="nav-item active flex items-center gap-3"><i class="ph ph-trend-up"></i> 在庫理論と発注戦略</span></li>
+                <li><span class="nav-item opacity-50 cursor-not-allowed flex items-center gap-3"><i class="ph ph-projector-screen"></i> シナリオ</span></li>
+                <li><span class="nav-item opacity-50 cursor-not-allowed flex items-center gap-3"><i class="ph ph-rocket-launch"></i> アクションプラン</span></li>
+            </ul>
+        </nav>
+        <div class="p-4 border-t border-slate-700 text-xs text-slate-500 bg-slate-900 md:bg-transparent">
+            <p>Phase 3: 在庫理論</p>
+            <p>Mobile Optimized v2.0</p>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 w-full bg-slate-50 p-4 md:p-8">
+        
+        <section id="quant" class="space-y-6 animate-fade-in max-w-5xl mx-auto">
+            <div class="bg-white rounded-xl shadow-sm p-5 md:p-8">
+                <h2 class="text-xl md:text-2xl font-bold text-brand-dark mb-4 leading-snug">在庫理論と発注戦略：<br class="md:hidden">体験型シミュレーション</h2>
+                <div class="prose max-w-none text-slate-600 mb-8 text-sm leading-relaxed">
+                    <p>西野先生、川崎先生の講義に基づき、「不確実性下での意思決定」と「サービスレベルと在庫のトレードオフ（感度分析）」を体験します。</p>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    
+                    <!-- 1. Newsvendor Game -->
+                    <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 class="font-bold text-brand-primary mb-3 flex items-center gap-2 text-lg">
+                            <i class="ph ph-scales text-2xl"></i>
+                            発注量最適化ゲーム
+                        </h3>
+                        <p class="text-sm text-slate-500 mb-6">
+                            需要予測が外れることを前提に、余剰在庫（廃棄損）と欠品（機会損失）のバランスを取り、利益を最大化する発注量を模索します。
+                        </p>
+                        
+                        <!-- Game Settings -->
+                        <div class="bg-white p-4 rounded-lg border border-slate-200 mb-6 shadow-sm">
+                            <h4 class="text-xs font-bold text-slate-400 uppercase mb-3 border-b pb-2">取引条件設定 (千円/t)</h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1">仕入単価 (Cost)</label>
+                                    <input type="number" id="game-cost" placeholder="例: 100" class="w-full p-3 border rounded-lg text-right bg-slate-50 focus:bg-white focus:border-brand-primary outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1">販売単価 (Price)</label>
+                                    <input type="number" id="game-price" placeholder="例: 120" class="w-full p-3 border rounded-lg text-right bg-slate-50 focus:bg-white focus:border-brand-primary outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-red-500 mb-1">滞留・廃棄損 (Loss)</label>
+                                    <input type="number" id="game-salvage-loss" placeholder="例: 50" class="w-full p-3 border rounded-lg text-right bg-slate-50 focus:bg-white focus:border-brand-accent outline-none focus:ring-2 focus:ring-brand-accent/20 transition-all">
+                                </div>
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-3 flex items-start gap-1">
+                                <i class="ph ph-info mt-0.5"></i>
+                                <span>需要分布: 平均100t, 標準偏差20t (正規分布) を想定</span>
+                            </div>
+                        </div>
+
+                        <!-- Game Play Area -->
+                        <div class="mb-6 bg-white p-5 rounded-lg border border-slate-200 shadow-sm relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-brand-primary"></div>
+                             <div class="flex flex-col sm:flex-row gap-4 items-end">
+                                <div class="w-full sm:flex-1">
+                                    <label class="block text-sm font-bold text-brand-dark mb-1">今日の発注数 (トン)</label>
+                                    <input type="number" id="game-order-qty" placeholder="100" class="w-full p-3 border-2 border-brand-primary rounded-lg text-right font-bold text-xl text-brand-dark">
+                                </div>
+                                <div class="w-full sm:w-auto flex gap-2">
+                                    <button onclick="playNewsvendorRound()" class="flex-1 sm:flex-none bg-brand-primary hover:bg-sky-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg shadow-blue-500/30 transition transform active:scale-95 flex items-center justify-center gap-2">
+                                        <i class="ph ph-shopping-cart"></i> 発注
+                                    </button>
+                                    <button onclick="autoPlayNewsvendor()" class="flex-1 sm:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 px-4 rounded-lg shadow transition flex items-center justify-center gap-1 text-xs">
+                                        <i class="ph ph-robot"></i> オート
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="text-right mt-3">
+                                <button onclick="resetNewsvendorGame()" class="text-xs text-red-500 hover:text-red-700 flex items-center justify-end gap-1 ml-auto">
+                                    <i class="ph ph-arrow-counter-clockwise"></i> リセット
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Result Display -->
+                        <div id="game-result-area" class="hidden bg-emerald-50 p-4 rounded-lg border border-emerald-200 mb-6 text-sm animate-fade-in shadow-inner">
+                             <div class="grid grid-cols-3 gap-2 text-center divide-x divide-emerald-200/50">
+                                <div><div class="text-[10px] text-slate-500 uppercase tracking-wide mb-1">実際の需要</div><span id="res-demand" class="font-bold text-slate-700 text-lg"></span></div>
+                                <div><div class="text-[10px] text-slate-500 uppercase tracking-wide mb-1">結果</div><span id="res-outcome" class="font-bold text-slate-700 leading-tight block text-xs sm:text-sm"></span></div>
+                                <div><div class="text-[10px] text-slate-500 uppercase tracking-wide mb-1">損益</div><span id="res-profit" class="font-bold text-lg"></span></div>
+                             </div>
+                        </div>
+
+                        <!-- Chart -->
+                        <div class="chart-container mb-2">
+                            <canvas id="newsvendorChart"></canvas>
+                        </div>
+                        <div class="text-xs text-center grid grid-cols-2 gap-2 p-3 bg-slate-100 rounded-lg border border-slate-200">
+                            <div>
+                                <span class="block text-slate-400 mb-1">あなたの累積利益</span>
+                                <span id="total-profit-user" class="font-bold text-lg text-brand-primary">0</span> <span class="text-[10px]">千円</span>
+                            </div>
+                            <div>
+                                <span class="block text-slate-400 mb-1">AI最適値の累積</span>
+                                <span id="total-profit-opt" class="font-bold text-lg text-slate-500">0</span> <span class="text-[10px]">千円</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Safety Stock Sensitivity Analysis -->
+                    <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 class="font-bold text-brand-success mb-3 flex items-center gap-2 text-lg">
+                            <i class="ph ph-chart-line-up text-2xl"></i>
+                            適正在庫とROIC：<br class="sm:hidden">感度分析
+                        </h3>
+                        <p class="text-sm text-slate-500 mb-6">
+                            「欠品絶対阻止」の号令が、どれほどの運転資本（キャッシュ）を固定化させるかを可視化します。
+                        </p>
+
+                        <!-- Settings -->
+                        <div class="bg-white p-4 rounded-lg border border-slate-200 mb-6 shadow-sm">
+                             <h4 class="text-xs font-bold text-slate-400 uppercase mb-3 border-b pb-2">パラメータ設定</h4>
+                            <div class="grid grid-cols-2 gap-4 text-xs sm:text-sm">
+                                <div>
+                                    <label class="block font-bold text-slate-500 mb-1">商品単価 (千円/t)</label>
+                                    <input type="number" id="sens-price" value="150" class="w-full border rounded-lg px-3 py-2 text-right bg-slate-50 focus:bg-white focus:border-brand-success outline-none" onchange="updateSensitivityAnalysis()">
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-500 mb-1">在庫金利・保管費</label>
+                                    <div class="relative">
+                                        <input type="number" id="sens-rate" value="10" class="w-full border rounded-lg px-3 py-2 text-right bg-slate-50 focus:bg-white focus:border-brand-success outline-none pr-8" onchange="updateSensitivityAnalysis()">
+                                        <span class="absolute right-3 top-2 text-slate-400">%</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-500 mb-1">ベース需要 (t/日)</label>
+                                    <input type="number" id="sens-demand" value="100" class="w-full border rounded-lg px-3 py-2 text-right bg-slate-50 focus:bg-white focus:border-brand-success outline-none" onchange="updateSensitivityAnalysis()">
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-500 mb-1">需要の振れ幅(σ)</label>
+                                    <input type="number" id="sens-sigma" value="10" class="w-full border rounded-lg px-3 py-2 text-right bg-slate-50 focus:bg-white focus:border-brand-success outline-none" onchange="updateSensitivityAnalysis()">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Slider -->
+                        <div class="mb-8 px-2 bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+                                <label class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                    <i class="ph ph-sliders"></i> 目標サービスレベル
+                                </label>
+                                <div class="bg-brand-success/10 px-3 py-1 rounded-full">
+                                    <span id="ss-slider-val" class="text-2xl font-bold text-brand-success">95.0%</span>
+                                </div>
+                            </div>
+                            <input type="range" id="ss-slider" min="80" max="99.9" step="0.1" value="95" class="w-full h-4 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-brand-success focus:outline-none focus:ring-2 focus:ring-brand-success/30" oninput="updateSensitivityAnalysis()">
+                            <div class="flex justify-between text-xs text-slate-500 mt-2 font-medium">
+                                <span>80% (欠品容認)</span>
+                                <span>99.9% (完全供給)</span>
+                            </div>
+                        </div>
+
+                        <!-- Results -->
+                        <div class="bg-brand-dark/5 p-4 rounded-lg border border-brand-dark/10 mb-6">
+                                <div class="grid grid-cols-2 gap-4 text-center divide-x divide-slate-300">
+                                <div>
+                                    <div class="text-xs text-slate-500 mb-1 font-bold">必要な安全在庫</div>
+                                    <div class="text-xl font-bold text-slate-700"><span id="sens-ss-ton">--</span> <span class="text-sm font-normal text-slate-500">トン</span></div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-slate-500 mb-1 font-bold">滞留在庫金額 (運転資本)</div>
+                                    <div class="text-xl font-bold text-brand-success"><span id="sens-ss-val">--</span> <span class="text-sm font-normal text-slate-500">百万円</span></div>
+                                </div>
+                                </div>
+                        </div>
+
+                        <div class="chart-container mb-4" style="height: 220px;">
+                            <canvas id="sensitivityChart"></canvas>
+                        </div>
+                        
+                        <!-- Insight Message -->
+                        <div id="sens-insight" class="text-sm leading-relaxed transition-all duration-300">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <footer class="text-center text-slate-400 text-xs py-8">
+                &copy; 東大SCMゆかいな仲間たち2025-2026
+            </footer>
+        </section>
+
+    </main>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- Mobile Menu Toggle ---
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const closeMenuBtn = document.getElementById('close-menu-btn');
+        const sidebar = document.getElementById('sidebar');
+
+        function toggleMenu() {
+            // hiddenクラスを外してflexを表示、あるいはその逆
+            if (sidebar.classList.contains('hidden')) {
+                sidebar.classList.remove('hidden');
+                sidebar.classList.add('flex');
+                document.body.style.overflow = 'hidden'; // 背景スクロール禁止
+            } else {
+                sidebar.classList.add('hidden');
+                sidebar.classList.remove('flex');
+                document.body.style.overflow = ''; // スクロール再開
+            }
+        }
+
+        mobileMenuBtn.addEventListener('click', toggleMenu);
+        closeMenuBtn.addEventListener('click', toggleMenu);
+
+        // --- QUANT (Newsvendor & Sensitivity) ---
+        let nvChartInstance = null;
+        let sensChartInstance = null;
+        let nvDataUser = 0;
+        let nvDataOpt = 0;
+        let nvHistory = [];
+
+        // Box-Muller transform for normal distribution
+        function randn_bm() {
+            let u = 0, v = 0;
+            while(u === 0) u = Math.random(); 
+            while(v === 0) v = Math.random();
+            return Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+        }
+        
+        // Acklam's approximation for Inverse Normal CDF
+        function inverseNormalCDF(p) {
+            if (p <= 0 || p >= 1) return 0;
+            const a1 = -39.6968302866538, a2 = 220.946098424521, a3 = -275.928510446969;
+            const a4 = 138.357751867269, a5 = -30.6647980661472, a6 = 2.50662827745924;
+            const b1 = -54.4760987982241, b2 = 161.585836858041, b3 = -155.698979859887;
+            const b4 = 66.8013118877197, b5 = -13.2806815528857;
+            const c1 = -7.78489400243029E-03, c2 = -0.322396458041136, c3 = -2.40075827716184;
+            const c4 = -2.54973253934373, c5 = 4.37466414146497, c6 = 2.93816398269878;
+            const d1 = 7.78469570904146E-03, d2 = 0.322467129070039, d3 = 2.44513413714299;
+            const d4 = 3.75440866190742;
+            const p_low = 0.02425, p_high = 1 - p_low;
+            let q, r;
+            if (0 < p && p < p_low) {
+                q = Math.sqrt(-2 * Math.log(p));
+                return (((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) /
+                        ((((d1 * q + d2) * q + d3) * q + d4) * q + 1);
+            } else if (p_low <= p && p <= p_high) {
+                q = p - 0.5;
+                r = q * q;
+                return (((((a1 * r + a2) * r + a3) * r + a4) * r + a5) * r + a6) * q /
+                        (((((b1 * r + b2) * r + b3) * r + b4) * r + b5) * r + 1);
+            } else if (p_high < p && p < 1) {
+                q = Math.sqrt(-2 * Math.log(1 - p));
+                return -(((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) /
+                         ((((d1 * q + d2) * q + d3) * q + d4) * q + 1);
+            }
+            return 0;
+        }
+
+        function initCharts() {
+            // Newsvendor Chart
+            const ctx1 = document.getElementById('newsvendorChart').getContext('2d');
+            nvChartInstance = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'あなたの累積利益', data: [], borderColor: '#0369a1', tension: 0.1, pointRadius: 2 },
+                        { label: '理論最適値(AI)', data: [], borderColor: '#94a3b8', borderDash: [5,5], tension: 0.1, pointRadius: 0 }
+                    ]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } }
+                    },
+                    scales: {
+                        x: { display: true, title: { display: true, text: '回数' } },
+                        y: { display: true }
+                    }
+                }
+            });
+
+            // Sensitivity Chart
+            const ctx2 = document.getElementById('sensitivityChart').getContext('2d');
+            const labels = [];
+            const data = [];
+            for(let i=80; i<=99.9; i+=0.5) {
+                labels.push(i.toFixed(1));
+                const k = inverseNormalCDF(i/100);
+                data.push(k); 
+            }
+            
+            sensChartInstance = new Chart(ctx2, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '必要安全在庫量 (相対値)',
+                        data: data,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: true,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { 
+                        y: { title: {display: false}, grid: { display: false }, ticks: { display: false } }, 
+                        x: { title: {display: true, text: 'サービスレベル (%)', font: {size: 10}}, ticks:{maxTicksLimit: 6, font: {size: 10}} } 
+                    },
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    interaction: { mode: 'nearest', intersect: false }
+                }
+            });
+            updateSensitivityAnalysis();
+        }
+
+        function playNewsvendorRound() {
+            const userQtyInput = document.getElementById('game-order-qty').value;
+            const costInput = document.getElementById('game-cost').value;
+            const priceInput = document.getElementById('game-price').value;
+            const lossInput = document.getElementById('game-salvage-loss').value;
+
+            if(!userQtyInput || !costInput || !priceInput || !lossInput) {
+                alert("全ての項目（単価・発注数）を入力してください。");
+                return;
+            }
+
+            const userQty = parseInt(userQtyInput);
+            const cost = parseInt(costInput);
+            const price = parseInt(priceInput);
+            const lossPerUnit = parseInt(lossInput);
+            
+            const demand = Math.round(100 + randn_bm() * 20);
+            
+            const cu = price - cost;
+            const co = lossPerUnit; 
+            const cr = cu / (cu + co);
+            const optK = inverseNormalCDF(cr);
+            const optQty = Math.round(100 + optK * 20);
+
+            const margin = price - cost;
+            const pUser = (Math.min(userQty, demand) * margin) - (Math.max(0, userQty - demand) * lossPerUnit);
+            const pOpt = (Math.min(optQty, demand) * margin) - (Math.max(0, optQty - demand) * lossPerUnit);
+
+            nvDataUser += pUser;
+            nvDataOpt += pOpt;
+            nvHistory.push(nvHistory.length+1);
+
+            document.getElementById('res-demand').innerText = demand + "t";
+            document.getElementById('res-outcome').innerText = userQty > demand ? `売残 ${userQty - demand}t` : `完売 (損失 ${Math.max(0, demand-userQty)}t)`;
+            document.getElementById('res-profit').innerText = pUser.toLocaleString() + "千";
+            
+            const pEl = document.getElementById('res-profit');
+            if(pUser < 0) {
+                pEl.className = "font-bold text-lg text-red-500";
+            } else {
+                pEl.className = "font-bold text-lg text-emerald-600";
+            }
+            
+            document.getElementById('game-result-area').classList.remove('hidden');
+
+            document.getElementById('total-profit-user').innerText = nvDataUser.toLocaleString();
+            document.getElementById('total-profit-opt').innerText = nvDataOpt.toLocaleString();
+
+            nvChartInstance.data.labels = nvHistory;
+            nvChartInstance.data.datasets[0].data.push(nvDataUser);
+            nvChartInstance.data.datasets[1].data.push(nvDataOpt);
+            nvChartInstance.update();
+        }
+
+        function autoPlayNewsvendor() {
+             const userQtyInput = document.getElementById('game-order-qty').value;
+            if(!userQtyInput) { alert("発注数を入力してください"); return; }
+            for(let i=0; i<30; i++) playNewsvendorRound();
+        }
+
+        function resetNewsvendorGame() {
+            nvDataUser = 0;
+            nvDataOpt = 0;
+            nvHistory = [];
+            
+            nvChartInstance.data.labels = [];
+            nvChartInstance.data.datasets[0].data = [];
+            nvChartInstance.data.datasets[1].data = [];
+            nvChartInstance.update();
+
+            document.getElementById('game-cost').value = "";
+            document.getElementById('game-price').value = "";
+            document.getElementById('game-salvage-loss').value = "";
+            document.getElementById('game-order-qty').value = "";
+
+            document.getElementById('game-result-area').classList.add('hidden');
+            document.getElementById('total-profit-user').innerText = "0";
+            document.getElementById('total-profit-opt').innerText = "0";
+        }
+
+        function updateSensitivityAnalysis() {
+            const sl = parseFloat(document.getElementById('ss-slider').value);
+            const price = parseFloat(document.getElementById('sens-price').value) || 0;
+            const rate = parseFloat(document.getElementById('sens-rate').value) || 0;
+            const demand = parseFloat(document.getElementById('sens-demand').value) || 0;
+            const sigma = parseFloat(document.getElementById('sens-sigma').value) || 0;
+            const lt = 5; 
+
+            document.getElementById('ss-slider-val').innerText = sl.toFixed(1) + "%";
+            
+            // Current SS
+            const k = inverseNormalCDF(sl / 100);
+            const ss = Math.round(k * sigma * Math.sqrt(lt));
+            const ssVal = (ss * price) / 1000; // Million JPY
+
+            document.getElementById('sens-ss-ton').innerText = ss.toLocaleString();
+            document.getElementById('sens-ss-val').innerText = ssVal.toFixed(1);
+
+            // Baseline (95%) Comparison
+            const k95 = 1.645;
+            const ss95 = Math.round(k95 * sigma * Math.sqrt(lt));
+            const ssVal95 = (ss95 * price) / 1000;
+
+            const diffTon = ss - ss95;
+            const diffVal = ssVal - ssVal95;
+            const holdingCost = diffVal * (rate / 100); 
+
+            const msgEl = document.getElementById('sens-insight');
+            if (sl > 95) {
+                msgEl.className = "mt-4 p-4 bg-red-50 border-l-4 border-red-400 text-sm text-red-800 leading-relaxed rounded-r-lg shadow-sm";
+                msgEl.innerHTML = `
+                    <div class="flex items-start gap-2">
+                        <i class="ph ph-warning-circle text-xl mt-0.5"></i>
+                        <div>
+                            <strong>経営への問いかけ (ROIC視点):</strong><br>
+                            サービスレベル <span class="font-bold underline">${sl}%</span> への引き上げに伴い、安全在庫が <span class="font-bold">+${diffTon}t</span> 必要です。<br>
+                            これにより約 <span class="font-bold text-red-600">${diffVal.toFixed(1)}百万円</span> の運転資本が追加で固定化され、年間約 <span class="font-bold">${(holdingCost*1000).toFixed(0)}千円</span> のコスト増となります。
+                        </div>
+                    </div>
+                `;
+            } else if (sl < 95) {
+                msgEl.className = "mt-4 p-4 bg-blue-50 border-l-4 border-blue-400 text-sm text-blue-800 leading-relaxed rounded-r-lg shadow-sm";
+                msgEl.innerHTML = `
+                    <div class="flex items-start gap-2">
+                        <i class="ph ph-lightbulb text-xl mt-0.5"></i>
+                        <div>
+                            <strong>在庫削減のチャンス:</strong><br>
+                            サービスレベルを <span class="font-bold underline">${sl}%</span> まで許容すると、95%時と比較して <span class="font-bold text-blue-600">${Math.abs(diffTon)}t</span> の在庫削減が可能です。<br>
+                            これにより約 <span class="font-bold">${Math.abs(diffVal).toFixed(1)}百万円</span> のキャッシュフロー改善が見込まれます。
+                        </div>
+                    </div>
+                `;
+            } else {
+                msgEl.className = "mt-4 p-4 bg-slate-100 border-l-4 border-slate-400 text-sm text-slate-600 leading-relaxed rounded-r-lg";
+                msgEl.innerHTML = "現在は標準的な設定（95%）です。スライダーを動かして変化を確認してください。";
+            }
+        }
+
+        window.addEventListener('load', () => {
+             initCharts();
+        });
+    </script>
+</body>
+</html>
